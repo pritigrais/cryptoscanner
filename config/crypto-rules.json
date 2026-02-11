@@ -1,0 +1,790 @@
+{
+  "critical": [
+    {
+      "pattern": "md5.*password|password.*md5",
+      "message": "MD5 used for password hashing - CRITICAL security risk",
+      "severity": "CRITICAL",
+      "cwe": "CWE-327",
+      "remediation": {
+        "title": "Replace MD5 with secure password hashing",
+        "description": "MD5 is cryptographically broken and unsuitable for password hashing. It's too fast, making brute-force attacks feasible.",
+        "fix_python": "import bcrypt\nhashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))\n# Verify: bcrypt.checkpw(password.encode(), hashed)",
+        "fix_javascript": "const bcrypt = require('bcrypt');\nconst saltRounds = 12;\nconst hashed = await bcrypt.hash(password, saltRounds);\n// Verify: await bcrypt.compare(password, hashed)",
+        "nist_reference": "NIST SP 800-63B: Use approved password hashing algorithms (bcrypt, scrypt, Argon2)",
+        "impact": "Passwords can be cracked in seconds using rainbow tables or GPU acceleration"
+      }
+    },
+    {
+      "pattern": "sha1.*password|password.*sha1",
+      "message": "SHA1 used for password hashing - CRITICAL security risk",
+      "severity": "CRITICAL",
+      "cwe": "CWE-327",
+      "remediation": {
+        "title": "Replace SHA1 with secure password hashing",
+        "description": "SHA1 is cryptographically broken and too fast for password hashing. Use adaptive hashing functions.",
+        "fix_python": "from argon2 import PasswordHasher\nph = PasswordHasher()\nhashed = ph.hash(password)\n# Verify: ph.verify(hashed, password)",
+        "fix_javascript": "const argon2 = require('argon2');\nconst hashed = await argon2.hash(password);\n// Verify: await argon2.verify(hashed, password)",
+        "nist_reference": "NIST SP 800-63B: Argon2 is the recommended password hashing algorithm",
+        "impact": "Passwords vulnerable to collision attacks and brute-force cracking"
+      }
+    },
+    {
+      "pattern": "password\\s*=\\s*['\"][^'\"]+['\"]",
+      "message": "Hardcoded password detected",
+      "severity": "CRITICAL",
+      "cwe": "CWE-798",
+      "remediation": {
+        "title": "Remove hardcoded credentials and use secure storage",
+        "description": "Hardcoded passwords in source code are visible to anyone with code access and cannot be rotated without code changes.",
+        "fix_python": "import os\nfrom dotenv import load_dotenv\nload_dotenv()\npassword = os.getenv('DB_PASSWORD')\nif not password:\n    raise ValueError('DB_PASSWORD not set')",
+        "fix_javascript": "require('dotenv').config();\nconst password = process.env.DB_PASSWORD;\nif (!password) {\n    throw new Error('DB_PASSWORD not set');\n}",
+        "nist_reference": "NIST SP 800-53 IA-5: Use secure credential management systems (Vault, AWS Secrets Manager)",
+        "impact": "Credentials exposed in version control, logs, and to all developers. Immediate rotation required."
+      }
+    },
+    {
+      "pattern": "api_key\\s*=\\s*['\"][^'\"]+['\"]",
+      "message": "Hardcoded API key detected",
+      "severity": "CRITICAL",
+      "cwe": "CWE-798",
+      "remediation": {
+        "title": "Move API keys to environment variables or secret manager",
+        "description": "API keys in code are exposed in repositories and cannot be easily rotated. Use environment-based configuration.",
+        "fix_python": "import os\nAPI_KEY = os.getenv('API_KEY')\nif not API_KEY:\n    raise ValueError('API_KEY environment variable required')\n# For production: Use AWS Secrets Manager, HashiCorp Vault, or IBM Cloud Secrets Manager",
+        "fix_javascript": "const API_KEY = process.env.API_KEY;\nif (!API_KEY) {\n    throw new Error('API_KEY environment variable required');\n}\n// For production: Use secret management service",
+        "nist_reference": "NIST SP 800-57: Cryptographic keys must be protected throughout their lifecycle",
+        "impact": "API key compromise allows unauthorized access. Rotate key immediately and audit usage logs."
+      }
+    },
+    {
+      "pattern": "secret\\s*=\\s*['\"][^'\"]+['\"]",
+      "message": "Hardcoded secret detected",
+      "severity": "CRITICAL",
+      "cwe": "CWE-798"
+    },
+    {
+      "pattern": "RSA.*1024|1024.*RSA|RSA.*2048|2048.*RSA",
+      "message": "Weak RSA key size (1024/2048-bit) - quantum computers will break this easily",
+      "severity": "CRITICAL",
+      "cwe": "CWE-326"
+    },
+    {
+      "pattern": "(long.term|archive|10.year|20.year|retention).*encrypt.*(RSA|ECDSA|ECC)",
+      "message": "⚠️ HARVEST NOW, DECRYPT LATER RISK: Long-term data encrypted with quantum-vulnerable algorithm",
+      "severity": "CRITICAL",
+      "cwe": "CWE-327",
+      "remediation": {
+        "title": "Immediate PQC Migration Required for Long-Term Data",
+        "description": "Adversaries are harvesting encrypted data TODAY to decrypt with future quantum computers. Data with 10+ year retention needs PQC NOW.",
+        "fix_python": "# Use hybrid encryption (classical + PQC)\nfrom pqcrypto.kem.kyber1024 import generate_keypair, encrypt, decrypt\nfrom Crypto.Cipher import AES\n# Generate PQC keypair\npublic_key, secret_key = generate_keypair()\n# Encrypt with Kyber-1024 (256-bit quantum security)\nciphertext, shared_secret = encrypt(public_key)\n# Use shared secret for AES-256-GCM\ncipher = AES.new(shared_secret[:32], AES.MODE_GCM)",
+        "fix_javascript": "// Use liboqs for PQC\nconst oqs = require('liboqs');\nconst kem = new oqs.KeyEncapsulation('Kyber1024');\nconst keypair = kem.generate_keypair();\nconst { ciphertext, shared_secret } = kem.encap_secret(keypair.public_key);\n// Use shared_secret for AES-256-GCM encryption",
+        "nist_reference": "NIST IR 8413: Migration to Post-Quantum Cryptography - Prioritize long-term data",
+        "cnsa_2_0": "NSA CNSA 2.0: All NSS systems must use quantum-resistant algorithms by 2030. Start migration NOW for data with 10+ year lifetime.",
+        "impact": "CRITICAL: Adversaries collecting encrypted data now will decrypt it when quantum computers are available (est. 2030-2035). Financial records, medical data, state secrets at risk.",
+        "timeline": "2024: Start migration | 2027: Complete critical systems | 2030: Full PQC deployment | 2035: Quantum computers capable of breaking RSA-2048"
+      }
+    },
+    {
+      "pattern": "(medical|health|patient|PHI|HIPAA).*encrypt.*(RSA|ECDSA|ECC|DH)",
+      "message": "⚠️ HARVEST NOW, DECRYPT LATER: Healthcare data with quantum-vulnerable encryption",
+      "severity": "CRITICAL",
+      "cwe": "CWE-327",
+      "remediation": {
+        "title": "Healthcare Data Requires Immediate PQC Protection",
+        "description": "Medical records have 50+ year retention. Current encryption will be broken before data expires.",
+        "nist_reference": "HIPAA + NIST: Medical data requires protection for patient lifetime (50-100 years)",
+        "cnsa_2_0": "NSA CNSA 2.0: National Security Systems (including healthcare) must migrate to PQC by 2030",
+        "impact": "Patient privacy at risk for decades. HIPAA violations if data compromised."
+      }
+    },
+    {
+      "pattern": "(financial|bank|payment|credit.card|transaction).*encrypt.*(RSA|ECDSA|ECC)",
+      "message": "⚠️ HARVEST NOW, DECRYPT LATER: Financial data with quantum-vulnerable encryption",
+      "severity": "CRITICAL",
+      "cwe": "CWE-327",
+      "remediation": {
+        "title": "Financial Data Requires PQC Protection",
+        "description": "Financial records have 7-10 year retention (longer for audits). Quantum computers will break current encryption before retention expires.",
+        "nist_reference": "PCI DSS 4.0: Preparing for post-quantum cryptography",
+        "cnsa_2_0": "Financial institutions should begin PQC migration by 2025 to meet 2030 deadline",
+        "impact": "Financial fraud, identity theft, regulatory violations (SOX, PCI DSS)"
+      }
+    },
+    {
+      "pattern": "store.*password.*plain|plaintext.*password",
+      "message": "Plaintext password storage detected",
+      "severity": "CRITICAL",
+      "cwe": "CWE-256",
+      "remediation": {
+        "description": "Never store passwords in plaintext - always use secure hashing",
+        "solution": "Hash passwords with Argon2, bcrypt, or scrypt before storage",
+        "code_example_python": "from argon2 import PasswordHasher\nph = PasswordHasher()\nhashed_password = ph.hash(user_password)\n# Store hashed_password in database",
+        "code_example_javascript": "const bcrypt = require('bcrypt');\nconst hashedPassword = await bcrypt.hash(userPassword, 12);\n// Store hashedPassword in database",
+        "code_example_java": "BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);\nString hashedPassword = encoder.encode(userPassword);\n// Store hashedPassword in database",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "BEGIN RSA PRIVATE KEY|BEGIN PRIVATE KEY|BEGIN EC PRIVATE KEY",
+      "message": "Hardcoded private key detected",
+      "severity": "CRITICAL",
+      "cwe": "CWE-321",
+      "remediation": {
+        "description": "Remove hardcoded private keys from source code",
+        "solution": "Load private keys from secure key management systems or encrypted files",
+        "code_example_python": "import os\nfrom cryptography.hazmat.primitives import serialization\nwith open(os.getenv('PRIVATE_KEY_PATH'), 'rb') as key_file:\n    private_key = serialization.load_pem_private_key(\n        key_file.read(),\n        password=os.getenv('KEY_PASSWORD').encode()\n    )",
+        "code_example_javascript": "const fs = require('fs');\nconst privateKey = fs.readFileSync(process.env.PRIVATE_KEY_PATH, 'utf8');",
+        "code_example_java": "String keyPath = System.getenv(\"PRIVATE_KEY_PATH\");\nPrivateKey privateKey = loadPrivateKey(keyPath);",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Key_Management_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "verify=False|_create_unverified_context|TrustAllManager|HostnameVerifier.*true|ALLOW_ALL_HOSTNAME_VERIFIER",
+      "message": "TLS certificate verification disabled",
+      "severity": "CRITICAL",
+      "cwe": "CWE-295",
+      "remediation": {
+        "description": "Enable TLS certificate verification to prevent MITM attacks",
+        "solution": "Always verify TLS certificates in production code",
+        "code_example_python": "import requests\n# CORRECT: Default behavior verifies certificates\nresponse = requests.get('https://api.example.com')\n# If using custom CA: verify='/path/to/ca-bundle.crt'",
+        "code_example_javascript": "const https = require('https');\n// CORRECT: Default behavior verifies certificates\nconst options = { rejectUnauthorized: true };",
+        "code_example_java": "// CORRECT: Use default SSL context which verifies certificates\nHttpsURLConnection connection = (HttpsURLConnection) url.openConnection();\n// Don't disable hostname verification",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Protection_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "def.*encrypt.*xor|manual.*crypto|custom.*cipher|roll.*your.*own.*crypto",
+      "message": "Custom cryptographic implementation detected",
+      "severity": "CRITICAL",
+      "cwe": "CWE-327",
+      "remediation": {
+        "description": "Never implement custom cryptography - use established libraries",
+        "solution": "Use well-tested cryptographic libraries (cryptography, NaCl, OpenSSL)",
+        "code_example_python": "# CORRECT: Use established crypto library\nfrom cryptography.fernet import Fernet\nkey = Fernet.generate_key()\ncipher = Fernet(key)\nencrypted = cipher.encrypt(data)",
+        "code_example_javascript": "// CORRECT: Use built-in crypto module\nconst crypto = require('crypto');\nconst algorithm = 'aes-256-gcm';\nconst cipher = crypto.createCipheriv(algorithm, key, iv);",
+        "code_example_java": "// CORRECT: Use Java crypto APIs\nimport javax.crypto.Cipher;\nCipher cipher = Cipher.getInstance(\"AES/GCM/NoPadding\");",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "token\\s*=\\s*['\"][a-zA-Z0-9_-]{20,}['\"]|bearer\\s*=\\s*['\"][^'\"]+['\"]",
+      "message": "Hardcoded authentication token detected",
+      "severity": "CRITICAL",
+      "cwe": "CWE-798",
+      "remediation": {
+        "description": "Remove hardcoded tokens and use environment variables",
+        "solution": "Store authentication tokens securely outside source code",
+        "code_example_python": "import os\nauth_token = os.getenv('AUTH_TOKEN')\nheaders = {'Authorization': f'Bearer {auth_token}'}",
+        "code_example_javascript": "const authToken = process.env.AUTH_TOKEN;\nconst headers = { 'Authorization': `Bearer ${authToken}` };",
+        "code_example_java": "String authToken = System.getenv(\"AUTH_TOKEN\");\nrequest.header(\"Authorization\", \"Bearer \" + authToken);",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "AWS_SECRET_ACCESS_KEY\\s*=|PRIVATE_KEY\\s*=|DATABASE_URL\\s*=.*:.*@",
+      "message": "Hardcoded cloud credentials detected",
+      "severity": "CRITICAL",
+      "cwe": "CWE-798",
+      "remediation": {
+        "description": "Remove hardcoded cloud credentials from source code",
+        "solution": "Use cloud-native secret management (AWS Secrets Manager, Azure Key Vault, GCP Secret Manager)",
+        "code_example_python": "import boto3\n# Use AWS Secrets Manager\nsession = boto3.session.Session()\nclient = session.client('secretsmanager')\nsecret = client.get_secret_value(SecretId='prod/database')['SecretString']",
+        "code_example_javascript": "// Use AWS SDK\nconst AWS = require('aws-sdk');\nconst secretsManager = new AWS.SecretsManager();\nconst secret = await secretsManager.getSecretValue({ SecretId: 'prod/api-key' }).promise();",
+        "code_example_java": "// Use AWS SDK for Java\nSecretsManagerClient client = SecretsManagerClient.create();\nGetSecretValueResponse response = client.getSecretValue(r -> r.secretId(\"prod/database\"));",
+        "references": ["https://docs.aws.amazon.com/secretsmanager/"]
+      }
+    },
+    {
+      "pattern": "exec\\(|eval\\(.*input|eval\\(.*request|Runtime\\.getRuntime\\(\\)\\.exec",
+      "message": "Code execution with untrusted input - potential command injection",
+      "severity": "CRITICAL",
+      "cwe": "CWE-78",
+      "remediation": {
+        "description": "Never execute untrusted input as code",
+        "solution": "Use parameterized APIs instead of dynamic code execution",
+        "code_example_python": "# WRONG: exec(user_input)\n# CORRECT: Use subprocess with list arguments\nimport subprocess\nresult = subprocess.run(['ls', '-l', user_dir], capture_output=True, text=True)",
+        "code_example_javascript": "// WRONG: eval(userInput)\n// CORRECT: Use JSON.parse for data or specific APIs\nconst data = JSON.parse(userInput);",
+        "code_example_java": "// WRONG: Runtime.getRuntime().exec(userInput)\n// CORRECT: Use ProcessBuilder with list\nProcessBuilder pb = new ProcessBuilder(\"ls\", \"-l\", userDir);",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/OS_Command_Injection_Defense_Cheat_Sheet.html"]
+      }
+    }
+  ],
+  "high": [
+    {
+      "pattern": "random\\.random\\(\\)|random\\.randint\\(|random\\.choice\\(",
+      "message": "Weak random number generator (not cryptographically secure)",
+      "severity": "HIGH",
+      "cwe": "CWE-338",
+      "remediation": {
+        "title": "Use cryptographically secure random number generator",
+        "description": "random.random() is predictable and unsuitable for security purposes. Use secrets module for cryptographic operations.",
+        "fix_python": "import secrets\n# For tokens:\ntoken = secrets.token_hex(32)  # 256 bits\n# For random numbers:\nrandom_num = secrets.randbelow(1000000)\n# For random bytes:\nrandom_bytes = secrets.token_bytes(16)",
+        "fix_javascript": "const crypto = require('crypto');\n// For tokens:\nconst token = crypto.randomBytes(32).toString('hex');\n// For random numbers:\nconst randomNum = crypto.randomInt(0, 1000000);\n// For UUIDs:\nconst uuid = crypto.randomUUID();",
+        "nist_reference": "NIST SP 800-90A: Use approved random number generators for cryptographic applications",
+        "impact": "Predictable tokens/session IDs enable session hijacking and token forgery attacks"
+      }
+    },
+    {
+      "pattern": "Math\\.random\\(\\)",
+      "message": "Weak random number generator (not cryptographically secure)",
+      "severity": "HIGH",
+      "cwe": "CWE-338",
+      "remediation": {
+        "title": "Replace Math.random() with crypto.randomBytes()",
+        "description": "Math.random() uses a weak PRNG unsuitable for security. Use Node.js crypto module for secure randomness.",
+        "fix_javascript": "const crypto = require('crypto');\n// For tokens:\nconst token = crypto.randomBytes(32).toString('hex');\n// For session IDs:\nconst sessionId = crypto.randomBytes(16).toString('base64url');\n// For random integers:\nconst randomInt = crypto.randomInt(0, 1000000);",
+        "fix_python": "import secrets\ntoken = secrets.token_urlsafe(32)\nsession_id = secrets.token_hex(16)\nrandom_int = secrets.randbelow(1000000)",
+        "nist_reference": "NIST SP 800-90A Rev. 1: Recommendation for Random Number Generation",
+        "impact": "Attackers can predict random values, compromising session tokens and security tokens"
+      }
+    },
+    {
+      "pattern": "AES.*ECB|ECB.*AES|Cipher\\.getInstance\\(['\"]AES/ECB",
+      "message": "ECB mode usage - insecure block cipher mode",
+      "severity": "HIGH",
+      "cwe": "CWE-327",
+      "remediation": {
+        "title": "Replace ECB mode with GCM or CBC mode",
+        "description": "ECB mode reveals patterns in plaintext and doesn't provide authentication. Use GCM for authenticated encryption.",
+        "fix_python": "from Crypto.Cipher import AES\nfrom Crypto.Random import get_random_bytes\n# Use GCM mode (authenticated encryption)\nkey = get_random_bytes(32)  # 256-bit\ncipher = AES.new(key, AES.MODE_GCM)\nciphertext, tag = cipher.encrypt_and_digest(plaintext)\n# Store: cipher.nonce, tag, ciphertext",
+        "fix_javascript": "const crypto = require('crypto');\nconst algorithm = 'aes-256-gcm';\nconst key = crypto.randomBytes(32);\nconst iv = crypto.randomBytes(16);\nconst cipher = crypto.createCipheriv(algorithm, key, iv);\nlet encrypted = cipher.update(plaintext, 'utf8', 'hex');\nencrypted += cipher.final('hex');\nconst authTag = cipher.getAuthTag();",
+        "nist_reference": "NIST SP 800-38D: GCM provides both confidentiality and authenticity",
+        "impact": "ECB mode leaks information about plaintext patterns, enabling cryptanalysis"
+      }
+    },
+    {
+      "pattern": "key_size\\s*=\\s*128|keysize\\s*=\\s*128|KeyGenerator.*\\.init\\(128\\)",
+      "message": "Weak key size (128 bits) - consider 256 bits",
+      "severity": "HIGH",
+      "cwe": "CWE-326",
+      "remediation": {
+        "title": "Increase key size to 256 bits",
+        "description": "128-bit keys provide adequate security today but 256-bit keys offer better long-term protection and quantum resistance.",
+        "fix_python": "from Crypto.Random import get_random_bytes\n# Use 256-bit keys\nkey = get_random_bytes(32)  # 32 bytes = 256 bits\n# For AES-256\nfrom Crypto.Cipher import AES\ncipher = AES.new(key, AES.MODE_GCM)",
+        "fix_javascript": "const crypto = require('crypto');\n// Generate 256-bit key\nconst key = crypto.randomBytes(32);  // 32 bytes = 256 bits\n// Use AES-256\nconst cipher = crypto.createCipheriv('aes-256-gcm', key, iv);",
+        "nist_reference": "NIST SP 800-57: 256-bit keys recommended for long-term protection (beyond 2030)",
+        "impact": "128-bit keys may be vulnerable to future quantum computers and advanced attacks"
+      }
+    },
+    {
+      "pattern": "\\bRSA\\b(?!.*4096)",
+      "message": "RSA without 4096-bit keys - not quantum-resistant (use RSA-4096 or migrate to PQC)",
+      "severity": "HIGH",
+      "cwe": "CWE-327"
+    },
+    {
+      "pattern": "\\bECDSA\\b|\\bECDH\\b|\\bECC\\b|secp256k1|secp256r1|secp384r1|P-256|P-384|P-521",
+      "message": "Elliptic Curve Cryptography - vulnerable to quantum attacks (Shor's algorithm)",
+      "severity": "HIGH",
+      "cwe": "CWE-327"
+    },
+    {
+      "pattern": "\\bDH\\b|Diffie-Hellman|DHE|ECDHE",
+      "message": "Diffie-Hellman key exchange - not quantum-safe (vulnerable to Shor's algorithm)",
+      "severity": "HIGH",
+      "cwe": "CWE-327",
+      "remediation": {
+        "title": "Plan migration to post-quantum cryptography",
+        "description": "RSA and ECDSA will be broken by quantum computers. Start planning hybrid classical+post-quantum approach.",
+        "fix_python": "# Short-term: Increase key sizes\nfrom Crypto.PublicKey import RSA\nkey = RSA.generate(4096)  # Use 4096-bit RSA\n# Long-term: Implement post-quantum algorithms\n# import oqs  # Open Quantum Safe library\n# kem = oqs.KeyEncapsulation('Kyber512')\n# public_key = kem.generate_keypair()",
+        "fix_javascript": "// Short-term: Use larger keys\nconst { generateKeyPairSync } = require('crypto');\nconst { publicKey, privateKey } = generateKeyPairSync('rsa', {\n  modulusLength: 4096  // Increase to 4096-bit\n});\n// Long-term: Monitor post-quantum crypto libraries",
+        "nist_reference": "NIST Post-Quantum Cryptography: CRYSTALS-Kyber (encryption), CRYSTALS-Dilithium (signatures) standardized",
+        "impact": "Current encryption vulnerable to future quantum computers. Plan migration by 2030."
+      }
+    },
+    {
+      "pattern": "IV\\s*=\\s*['\"][^'\"]+['\"]|iv\\s*=\\s*['\"][^'\"]+['\"]",
+      "message": "Hardcoded initialization vector (IV)",
+      "severity": "HIGH",
+      "cwe": "CWE-329",
+      "remediation": {
+        "title": "Generate random IV for each encryption",
+        "description": "IVs must be unique and unpredictable for each encryption operation. Never reuse IVs with the same key.",
+        "fix_python": "from Crypto.Random import get_random_bytes\nfrom Crypto.Cipher import AES\n# Generate new random IV for each encryption\niv = get_random_bytes(16)  # AES block size\ncipher = AES.new(key, AES.MODE_CBC, iv)\n# Store IV with ciphertext (IV doesn't need to be secret)",
+        "fix_javascript": "const crypto = require('crypto');\n// Generate new random IV for each encryption\nconst iv = crypto.randomBytes(16);  // 16 bytes for AES\nconst cipher = crypto.createCipheriv('aes-256-cbc', key, iv);\n// Prepend IV to ciphertext for storage",
+        "nist_reference": "NIST SP 800-38A: IVs must be unpredictable and never reused with the same key",
+        "impact": "IV reuse breaks encryption security, enabling plaintext recovery attacks"
+      }
+    },
+    {
+      "pattern": "RSA.*1024|RSA.*2048|modulusLength:\\s*1024|modulusLength:\\s*2048",
+      "message": "Weak RSA key size - use 3072 or 4096 bits",
+      "severity": "HIGH",
+      "cwe": "CWE-326",
+      "remediation": {
+        "description": "Increase RSA key size to at least 3072 bits, preferably 4096",
+        "solution": "Use RSA-4096 for long-term security",
+        "code_example_python": "from Crypto.PublicKey import RSA\nkey = RSA.generate(4096)  # Use 4096-bit keys",
+        "code_example_javascript": "const { generateKeyPairSync } = require('crypto');\nconst { publicKey, privateKey } = generateKeyPairSync('rsa', {\n  modulusLength: 4096,\n});",
+        "code_example_java": "KeyPairGenerator keyGen = KeyPairGenerator.getInstance(\"RSA\");\nkeyGen.initialize(4096);  // Use 4096-bit keys\nKeyPair keyPair = keyGen.generateKeyPair();",
+        "references": ["https://www.keylength.com/"]
+      }
+    },
+    {
+      "pattern": "IV\\s*=\\s*['\"][^'\"]+['\"]|iv\\s*=\\s*['\"][^'\"]+['\"]|nonce\\s*=\\s*['\"][^'\"]+['\"]",
+      "message": "Hardcoded initialization vector (IV) or nonce",
+      "severity": "HIGH",
+      "cwe": "CWE-329",
+      "remediation": {
+        "description": "Generate a new random IV for each encryption operation",
+        "solution": "Use cryptographically secure random generator to create unique IVs",
+        "code_example_python": "from Crypto.Random import get_random_bytes\niv = get_random_bytes(16)  # Generate new IV for each encryption\n# Store IV with ciphertext (IV doesn't need to be secret)",
+        "code_example_javascript": "const crypto = require('crypto');\nconst iv = crypto.randomBytes(16);  // Generate new IV\n// Prepend IV to ciphertext for storage",
+        "code_example_java": "import java.security.SecureRandom;\nSecureRandom random = new SecureRandom();\nbyte[] iv = new byte[16];\nrandom.nextBytes(iv);",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "nonce\\s*=\\s*0+|iv\\s*=\\s*bytes\\(16\\)|IV.*zeros|nonce.*\\x00",
+      "message": "Static or zero-filled nonce/IV detected",
+      "severity": "HIGH",
+      "cwe": "CWE-329",
+      "remediation": {
+        "description": "Generate unique random nonce/IV for each encryption",
+        "solution": "Use cryptographically secure random bytes",
+        "code_example_python": "import os\niv = os.urandom(16)  # Generate random IV",
+        "code_example_javascript": "const iv = crypto.randomBytes(16);",
+        "code_example_java": "byte[] iv = new byte[16];\nnew SecureRandom().nextBytes(iv);",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "AES.*CBC|AES/CBC|MODE_CBC",
+      "message": "CBC mode without authentication - vulnerable to padding oracle attacks",
+      "severity": "HIGH",
+      "cwe": "CWE-327",
+      "remediation": {
+        "description": "Use authenticated encryption (GCM) instead of CBC",
+        "solution": "Switch to AES-GCM which provides both encryption and authentication",
+        "code_example_python": "# CORRECT: Use GCM instead of CBC\nfrom Crypto.Cipher import AES\ncipher = AES.new(key, AES.MODE_GCM)\nciphertext, tag = cipher.encrypt_and_digest(data)",
+        "code_example_javascript": "const algorithm = 'aes-256-gcm';  // Not 'aes-256-cbc'\nconst cipher = crypto.createCipheriv(algorithm, key, iv);",
+        "code_example_java": "Cipher cipher = Cipher.getInstance(\"AES/GCM/NoPadding\");  // Not CBC",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "salt\\s*=\\s*['\"]|SALT\\s*=\\s*['\"]|salt.*constant",
+      "message": "Predictable or hardcoded cryptographic salt",
+      "severity": "HIGH",
+      "cwe": "CWE-760",
+      "remediation": {
+        "description": "Generate unique random salt for each password",
+        "solution": "Use cryptographically secure random salt generation",
+        "code_example_python": "import os\nsalt = os.urandom(16)  # Generate random salt per password\n# Store salt with hash in database",
+        "code_example_javascript": "const bcrypt = require('bcrypt');\n// bcrypt automatically generates unique salt\nconst hashed = await bcrypt.hash(password, 12);",
+        "code_example_java": "import java.security.SecureRandom;\nbyte[] salt = new byte[16];\nnew SecureRandom().nextBytes(salt);",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "key\\s*=\\s*['\"][A-Za-z0-9+/=]{16,}['\"]",
+      "message": "Hardcoded cryptographic key detected",
+      "severity": "HIGH",
+      "cwe": "CWE-321",
+      "remediation": {
+        "description": "Remove hardcoded keys and use secure key management",
+        "solution": "Load keys from environment variables or key management services",
+        "code_example_python": "import os\nkey = os.getenv('ENCRYPTION_KEY')\nif not key:\n    raise ValueError('ENCRYPTION_KEY not set')",
+        "code_example_javascript": "const encryptionKey = process.env.ENCRYPTION_KEY;\nif (!encryptionKey) throw new Error('ENCRYPTION_KEY not set');",
+        "code_example_java": "String key = System.getenv(\"ENCRYPTION_KEY\");\nif (key == null) throw new IllegalStateException(\"ENCRYPTION_KEY not set\");",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Key_Management_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "alg.*none|jwt\\.decode\\(.*verify=False|verify:\\s*false",
+      "message": "JWT signature verification disabled",
+      "severity": "HIGH",
+      "cwe": "CWE-347",
+      "remediation": {
+        "description": "Always verify JWT signatures",
+        "solution": "Enable signature verification and use strong algorithms",
+        "code_example_python": "import jwt\n# CORRECT: Verify signature\ndecoded = jwt.decode(token, secret_key, algorithms=['HS256'])",
+        "code_example_javascript": "const jwt = require('jsonwebtoken');\n// CORRECT: Verify signature (default behavior)\nconst decoded = jwt.verify(token, secretKey);",
+        "code_example_java": "// CORRECT: Verify signature\nJWT jwt = JWTParser.parse(token);\njwt.verify(verifier);",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "PBKDF2.*iterations.*1000|PBKDF2.*iterations.*10000|iterations\\s*=\\s*1000",
+      "message": "Insufficient PBKDF2 iterations - increase to 600,000+",
+      "severity": "HIGH",
+      "cwe": "CWE-916",
+      "remediation": {
+        "description": "Increase PBKDF2 iterations to meet current security standards",
+        "solution": "Use at least 600,000 iterations for PBKDF2-SHA256 (OWASP 2023)",
+        "code_example_python": "from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC\nimport os\nkdf = PBKDF2HMAC(\n    algorithm=hashes.SHA256(),\n    length=32,\n    salt=os.urandom(16),\n    iterations=600000  # OWASP recommendation\n)",
+        "code_example_javascript": "const crypto = require('crypto');\ncrypto.pbkdf2(password, salt, 600000, 32, 'sha256', callback);",
+        "code_example_java": "PBEKeySpec spec = new PBEKeySpec(password, salt, 600000, 256);",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "session\\.cookie_secure\\s*=\\s*False|secure:\\s*false|SESSION_COOKIE_SECURE\\s*=\\s*False",
+      "message": "Session cookie missing Secure flag",
+      "severity": "HIGH",
+      "cwe": "CWE-614",
+      "remediation": {
+        "description": "Set Secure flag on session cookies to prevent transmission over HTTP",
+        "solution": "Enable secure cookie settings",
+        "code_example_python": "# Flask\napp.config['SESSION_COOKIE_SECURE'] = True\napp.config['SESSION_COOKIE_HTTPONLY'] = True\napp.config['SESSION_COOKIE_SAMESITE'] = 'Strict'",
+        "code_example_javascript": "// Express\napp.use(session({\n  cookie: {\n    secure: true,\n    httpOnly: true,\n    sameSite: 'strict'\n  }\n}));",
+        "code_example_java": "// Spring Boot application.properties\nserver.servlet.session.cookie.secure=true\nserver.servlet.session.cookie.http-only=true",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "httpOnly:\\s*false|SESSION_COOKIE_HTTPONLY\\s*=\\s*False",
+      "message": "Session cookie missing HttpOnly flag",
+      "severity": "HIGH",
+      "cwe": "CWE-1004",
+      "remediation": {
+        "description": "Set HttpOnly flag to prevent JavaScript access to cookies",
+        "solution": "Enable HttpOnly on all session cookies",
+        "code_example_python": "app.config['SESSION_COOKIE_HTTPONLY'] = True",
+        "code_example_javascript": "cookie: { httpOnly: true }",
+        "code_example_java": "server.servlet.session.cookie.http-only=true",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "expir.*365.*day|maxAge.*365.*24.*60.*60|max-age=31536000",
+      "message": "Excessive session/token expiration time (1+ year)",
+      "severity": "HIGH",
+      "cwe": "CWE-613",
+      "remediation": {
+        "description": "Reduce session expiration to reasonable timeframe",
+        "solution": "Use shorter session timeouts (15-30 minutes for sensitive apps)",
+        "code_example_python": "# 30 minute session timeout\napp.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)",
+        "code_example_javascript": "// 30 minute timeout\ncookie: { maxAge: 30 * 60 * 1000 }  // milliseconds",
+        "code_example_java": "// 30 minute timeout\nserver.servlet.session.timeout=30m",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "X509TrustManager.*checkServerTrusted.*\\{\\s*\\}",
+      "message": "Empty certificate trust manager - accepts all certificates",
+      "severity": "HIGH",
+      "cwe": "CWE-295",
+      "remediation": {
+        "description": "Implement proper certificate validation",
+        "solution": "Use default trust manager or implement proper validation",
+        "code_example_java": "// CORRECT: Use default trust manager\nSSLContext context = SSLContext.getInstance(\"TLS\");\ncontext.init(null, null, null);  // Use default trust manager",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Protection_Cheat_Sheet.html"]
+      }
+    }
+  ],
+  "medium": [
+    {
+      "pattern": "sha1(?!.*password)",
+      "message": "SHA1 usage detected - consider SHA-256 or SHA-3",
+      "severity": "MEDIUM",
+      "cwe": "CWE-327",
+      "remediation": {
+        "title": "Migrate from SHA1 to SHA-256 or SHA-3",
+        "description": "SHA1 is cryptographically broken with known collision attacks. Use SHA-256 or SHA-3 for integrity verification.",
+        "fix_python": "import hashlib\n# Replace SHA1\nhash_value = hashlib.sha256(data.encode()).hexdigest()\n# Or use SHA-3\nhash_value = hashlib.sha3_256(data.encode()).hexdigest()",
+        "fix_javascript": "const crypto = require('crypto');\n// Replace SHA1\nconst hash = crypto.createHash('sha256').update(data).digest('hex');\n// Or use SHA-3\nconst hash3 = crypto.createHash('sha3-256').update(data).digest('hex');",
+        "nist_reference": "NIST FIPS 180-4: SHA-256 and SHA-3 are approved hash functions",
+        "impact": "SHA1 collisions can be generated, compromising digital signatures and integrity checks"
+      }
+    },
+    {
+      "pattern": "\\bDES\\b|\\b3DES\\b|\\bTripleDES\\b|DESede",
+      "message": "Weak encryption algorithm (DES/3DES)",
+      "severity": "MEDIUM",
+      "cwe": "CWE-327",
+      "remediation": {
+        "title": "Replace DES/3DES with AES-256",
+        "description": "DES has 56-bit keys (broken), 3DES is deprecated. Use AES-256-GCM for modern encryption.",
+        "fix_python": "from Crypto.Cipher import AES\nfrom Crypto.Random import get_random_bytes\n# Use AES-256-GCM\nkey = get_random_bytes(32)\ncipher = AES.new(key, AES.MODE_GCM)\nciphertext, tag = cipher.encrypt_and_digest(plaintext)",
+        "fix_javascript": "const crypto = require('crypto');\n// Use AES-256-GCM\nconst key = crypto.randomBytes(32);\nconst iv = crypto.randomBytes(16);\nconst cipher = crypto.createCipheriv('aes-256-gcm', key, iv);",
+        "nist_reference": "NIST SP 800-131A: 3DES deprecated, AES-256 recommended",
+        "impact": "DES easily broken, 3DES slow and deprecated. Migrate to AES before 2024 deadline."
+      }
+    },
+    {
+      "pattern": "RC4|ARC4|ARCFOUR",
+      "message": "RC4 stream cipher - known vulnerabilities",
+      "severity": "MEDIUM",
+      "cwe": "CWE-327",
+      "remediation": {
+        "title": "Replace RC4 with ChaCha20 or AES-GCM",
+        "description": "RC4 has multiple known vulnerabilities and is prohibited in TLS. Use modern stream ciphers or AES-GCM.",
+        "fix_python": "from Crypto.Cipher import ChaCha20\nfrom Crypto.Random import get_random_bytes\n# Use ChaCha20\nkey = get_random_bytes(32)\nnonce = get_random_bytes(12)\ncipher = ChaCha20.new(key=key, nonce=nonce)\nciphertext = cipher.encrypt(plaintext)",
+        "fix_javascript": "const crypto = require('crypto');\n// Use ChaCha20-Poly1305\nconst key = crypto.randomBytes(32);\nconst nonce = crypto.randomBytes(12);\nconst cipher = crypto.createCipheriv('chacha20-poly1305', key, nonce);",
+        "nist_reference": "RFC 7539: ChaCha20-Poly1305 is approved for IETF protocols",
+        "impact": "RC4 biases enable plaintext recovery. Prohibited in TLS 1.3 and modern protocols."
+      }
+    },
+    {
+      "pattern": "\\bSSL\\b|SSLv2|SSLv3|TLSv1\\.0|TLSv1\\.1|PROTOCOL_SSLv|PROTOCOL_TLSv1\\b",
+      "message": "Outdated SSL/TLS version - use TLS 1.2+",
+      "severity": "MEDIUM",
+      "cwe": "CWE-327",
+      "remediation": {
+        "title": "Upgrade to TLS 1.2 or TLS 1.3",
+        "description": "SSL and TLS 1.0/1.1 have known vulnerabilities (POODLE, BEAST). Use TLS 1.2 minimum, TLS 1.3 preferred.",
+        "fix_python": "import ssl\nimport requests\n# Force TLS 1.2+\ncontext = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)\ncontext.minimum_version = ssl.TLSVersion.TLSv1_2\nresponse = requests.get(url, verify=True)",
+        "fix_javascript": "const https = require('https');\n// Force TLS 1.2+\nconst options = {\n  minVersion: 'TLSv1.2',\n  maxVersion: 'TLSv1.3'\n};\nhttps.request(url, options);",
+        "nist_reference": "NIST SP 800-52 Rev. 2: TLS 1.2 minimum, TLS 1.3 recommended",
+        "impact": "Vulnerable to POODLE, BEAST, and other protocol-level attacks. PCI DSS prohibits TLS 1.0/1.1."
+      }
+    },
+    {
+      "pattern": "hashlib\\.sha256\\(password|hashlib\\.sha512\\(password",
+      "message": "Improper password hashing without KDF",
+      "severity": "MEDIUM",
+      "cwe": "CWE-916",
+      "remediation": {
+        "description": "Use proper password hashing algorithms instead of plain SHA",
+        "solution": "Use Argon2, bcrypt, or scrypt for password hashing",
+        "code_example_python": "# WRONG: hashlib.sha256(password.encode())\n# CORRECT:\nfrom argon2 import PasswordHasher\nph = PasswordHasher()\nhashed = ph.hash(password)",
+        "code_example_javascript": "const bcrypt = require('bcrypt');\nconst hashed = await bcrypt.hash(password, 12);",
+        "code_example_java": "BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);\nString hashed = encoder.encode(password);",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "SHA1withRSA|MD5withRSA|MD2withRSA",
+      "message": "Deprecated signature algorithm detected",
+      "severity": "MEDIUM",
+      "cwe": "CWE-327",
+      "remediation": {
+        "description": "Use modern signature algorithms",
+        "solution": "Use SHA256withRSA or better signature algorithms",
+        "code_example_java": "// CORRECT: Use SHA-256 or SHA-384\nSignature signature = Signature.getInstance(\"SHA256withRSA\");",
+        "code_example_python": "from cryptography.hazmat.primitives import hashes\nfrom cryptography.hazmat.primitives.asymmetric import padding\nsignature = private_key.sign(data, padding.PSS(...), hashes.SHA256())",
+        "references": ["https://csrc.nist.gov/projects/hash-functions"]
+      }
+    },
+    {
+      "pattern": "Blowfish|CAST5",
+      "message": "Legacy encryption algorithm with small block size",
+      "severity": "MEDIUM",
+      "cwe": "CWE-327",
+      "remediation": {
+        "description": "Replace with modern encryption algorithms",
+        "solution": "Use AES-256-GCM",
+        "code_example_python": "from Crypto.Cipher import AES\ncipher = AES.new(key, AES.MODE_GCM)",
+        "code_example_javascript": "const algorithm = 'aes-256-gcm';",
+        "code_example_java": "Cipher cipher = Cipher.getInstance(\"AES/GCM/NoPadding\");",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "Cipher\\.getInstance\\(['\"]RSA['\"]\\)|Cipher\\.getInstance\\(['\"]RSA/NONE",
+      "message": "RSA without padding or weak padding",
+      "severity": "MEDIUM",
+      "cwe": "CWE-780",
+      "remediation": {
+        "description": "Use RSA with OAEP padding",
+        "solution": "Always specify secure padding for RSA",
+        "code_example_java": "// CORRECT: Use OAEP padding\nCipher cipher = Cipher.getInstance(\"RSA/ECB/OAEPWithSHA-256AndMGF1Padding\");",
+        "code_example_python": "from cryptography.hazmat.primitives.asymmetric import padding\nfrom cryptography.hazmat.primitives import hashes\nciphertext = public_key.encrypt(\n    message,\n    padding.OAEP(\n        mgf=padding.MGF1(algorithm=hashes.SHA256()),\n        algorithm=hashes.SHA256(),\n        label=None\n    )\n)",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "NoPadding|PKCS1Padding",
+      "message": "Insecure or no padding scheme",
+      "severity": "MEDIUM",
+      "cwe": "CWE-780",
+      "remediation": {
+        "description": "Use secure padding schemes",
+        "solution": "Use OAEPPadding for RSA encryption",
+        "code_example_java": "Cipher cipher = Cipher.getInstance(\"RSA/ECB/OAEPWithSHA-256AndMGF1Padding\");",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "uuid\\.uuid4\\(\\).*session|uuid4.*token|str\\(uuid",
+      "message": "UUID used for security tokens - not cryptographically secure",
+      "severity": "MEDIUM",
+      "cwe": "CWE-338",
+      "remediation": {
+        "description": "UUIDs are not designed for security purposes",
+        "solution": "Use cryptographically secure token generation",
+        "code_example_python": "import secrets\ntoken = secrets.token_urlsafe(32)  # Cryptographically secure",
+        "code_example_javascript": "const crypto = require('crypto');\nconst token = crypto.randomBytes(32).toString('base64url');",
+        "code_example_java": "import java.security.SecureRandom;\nimport java.util.Base64;\nbyte[] tokenBytes = new byte[32];\nnew SecureRandom().nextBytes(tokenBytes);\nString token = Base64.getUrlEncoder().encodeToString(tokenBytes);",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "sameSite:\\s*['\"]none['\"]|SameSite=None(?!.*Secure)",
+      "message": "SameSite=None without Secure flag",
+      "severity": "MEDIUM",
+      "cwe": "CWE-1275",
+      "remediation": {
+        "description": "SameSite=None requires Secure flag",
+        "solution": "Always set Secure flag when using SameSite=None",
+        "code_example_javascript": "cookie: {\n  sameSite: 'none',\n  secure: true  // Required with SameSite=None\n}",
+        "code_example_python": "app.config['SESSION_COOKIE_SAMESITE'] = 'None'\napp.config['SESSION_COOKIE_SECURE'] = True  # Required",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "certificate.*expir.*365|cert.*valid.*365|validity.*365",
+      "message": "Long certificate validity period",
+      "severity": "MEDIUM",
+      "cwe": "CWE-298",
+      "remediation": {
+        "description": "Use shorter certificate validity periods",
+        "solution": "Limit certificates to 90 days or less for better security",
+        "code_example_python": "from datetime import datetime, timedelta\n# Set certificate validity to 90 days\nvalidity = timedelta(days=90)",
+        "references": ["https://letsencrypt.org/2015/11/09/why-90-days.html"]
+      }
+    }
+  ],
+  "low": [
+    {
+      "pattern": "md5(?!.*password)",
+      "message": "MD5 usage for non-security purposes (checksums OK)",
+      "severity": "LOW",
+      "cwe": "CWE-327",
+      "remediation": {
+        "title": "Consider SHA-256 for integrity verification",
+        "description": "MD5 is acceptable for non-security checksums but SHA-256 is preferred for integrity verification.",
+        "fix_python": "import hashlib\n# For file integrity\nchecksum = hashlib.sha256(file_data).hexdigest()\n# MD5 acceptable for non-security use:\n# - Cache keys\n# - Non-cryptographic identifiers",
+        "fix_javascript": "const crypto = require('crypto');\n// For file integrity\nconst checksum = crypto.createHash('sha256').update(fileData).digest('hex');\n// MD5 acceptable for:\n// - ETags\n// - Cache keys",
+        "nist_reference": "NIST SP 800-107: SHA-256 recommended for integrity verification",
+        "impact": "Low risk for non-security use, but SHA-256 provides better collision resistance"
+      }
+    },
+    {
+      "pattern": "base64\\.b64encode|btoa\\(",
+      "message": "Base64 encoding (not encryption) - ensure proper usage",
+      "severity": "LOW",
+      "cwe": "CWE-327",
+      "remediation": {
+        "title": "Ensure Base64 is not used as encryption",
+        "description": "Base64 is encoding, not encryption. Always encrypt sensitive data before encoding.",
+        "fix_python": "import base64\nfrom Crypto.Cipher import AES\n# WRONG: Base64 alone\n# encoded = base64.b64encode(sensitive_data)\n# CORRECT: Encrypt then encode\ncipher = AES.new(key, AES.MODE_GCM)\nciphertext, tag = cipher.encrypt_and_digest(sensitive_data)\nencoded = base64.b64encode(ciphertext)",
+        "fix_javascript": "const crypto = require('crypto');\n// WRONG: Base64 alone\n// const encoded = Buffer.from(sensitiveData).toString('base64');\n// CORRECT: Encrypt then encode\nconst cipher = crypto.createCipheriv('aes-256-gcm', key, iv);\nconst encrypted = cipher.update(sensitiveData);\nconst encoded = encrypted.toString('base64');",
+        "nist_reference": "Base64 is encoding (RFC 4648), not a security mechanism",
+        "impact": "Base64 is trivially reversible. Never use for protecting sensitive data."
+      }
+    },
+    {
+      "pattern": "URL\\.encode|encodeURI(?!Component)|escape\\(",
+      "message": "URL encoding is not encryption",
+      "severity": "LOW",
+      "cwe": "CWE-116",
+      "remediation": {
+        "description": "URL encoding is for data formatting, not security",
+        "solution": "Encrypt sensitive data before URL encoding if needed",
+        "code_example_javascript": "// URL encoding is for formatting only\nconst encoded = encodeURIComponent(data);\n// For sensitive data, encrypt first\nconst encrypted = cipher.update(data, 'utf8', 'base64');\nconst urlSafe = encodeURIComponent(encrypted);",
+        "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Injection_Prevention_Cheat_Sheet.html"]
+      }
+    },
+    {
+      "pattern": "crc32|adler32",
+      "message": "Non-cryptographic checksum - not for security",
+      "severity": "LOW",
+      "cwe": "CWE-327",
+      "remediation": {
+        "description": "CRC32/Adler32 are for data integrity, not security",
+        "solution": "Use cryptographic hashes (SHA-256) for security purposes",
+        "code_example_python": "# For data integrity checks only\nimport zlib\nchecksum = zlib.crc32(data)\n\n# For security, use SHA-256\nimport hashlib\nhash_value = hashlib.sha256(data).hexdigest()",
+        "references": ["https://csrc.nist.gov/projects/hash-functions"]
+      }
+    }
+  ],
+  "info": [
+    {
+      "pattern": "\\bcrypto\\b|\\bcryptography\\b|\\bhashlib\\b|javax\\.crypto|System\\.Security\\.Cryptography",
+      "message": "Cryptographic library usage detected",
+      "severity": "INFO",
+      "cwe": "N/A",
+      "remediation": {
+        "title": "Verify secure cryptographic library usage",
+        "description": "Cryptographic libraries detected. Ensure you're using approved algorithms and following best practices.",
+        "fix_python": "# Recommended Python crypto libraries:\n# - cryptography (modern, well-maintained)\n# - bcrypt (password hashing)\n# - argon2-cffi (password hashing)\n# AVOID: pycrypto (deprecated)",
+        "fix_javascript": "// Recommended Node.js crypto:\n// - crypto (built-in)\n// - bcrypt (password hashing)\n// - argon2 (password hashing)\n// AVOID: crypto-js for sensitive operations",
+        "nist_reference": "NIST SP 800-175B: Guideline for Using Cryptographic Standards",
+        "impact": "Informational - review crypto usage for compliance with security standards"
+      }
+    },
+    {
+      "pattern": "KeyGenerator|SecretKeyFactory|KeyPairGenerator",
+      "message": "Key generation detected - verify secure parameters",
+      "severity": "INFO",
+      "cwe": "N/A",
+      "remediation": {
+        "description": "Verify key generation uses secure parameters",
+        "solution": "Use minimum key sizes: AES-256, RSA-4096, ECC P-384",
+        "code_example_java": "KeyGenerator keyGen = KeyGenerator.getInstance(\"AES\");\nkeyGen.init(256);  // Use 256-bit keys",
+        "references": ["https://www.keylength.com/"]
+      }
+    },
+    {
+      "pattern": "openssl|LibreSSL|BoringSSL",
+      "message": "OpenSSL library usage detected",
+      "severity": "INFO",
+      "cwe": "N/A",
+      "remediation": {
+        "description": "Ensure OpenSSL version is up-to-date",
+        "solution": "Keep OpenSSL updated to latest stable version to avoid known vulnerabilities",
+        "references": ["https://www.openssl.org/"]
+      }
+    },
+    {
+      "pattern": "HMAC|hmac\\.new|createHmac",
+      "message": "HMAC usage detected - verify secure hash algorithm",
+      "severity": "INFO",
+      "cwe": "N/A",
+      "remediation": {
+        "description": "Verify HMAC uses secure hash algorithm",
+        "solution": "Use HMAC with SHA-256 or better",
+        "code_example_python": "import hmac\nimport hashlib\n# CORRECT: Use SHA-256 or better\nhmac_value = hmac.new(key, message, hashlib.sha256).hexdigest()",
+        "code_example_javascript": "const crypto = require('crypto');\nconst hmac = crypto.createHmac('sha256', key);\nhmac.update(message);",
+        "code_example_java": "Mac mac = Mac.getInstance(\"HmacSHA256\");\nmac.init(secretKey);",
+        "references": ["https://csrc.nist.gov/projects/hash-functions"]
+      }
+    }
+  ],
+  "pqc_positive": [
+    {
+      "pattern": "Kyber|CRYSTALS-Kyber|ML-KEM",
+      "message": "✅ Post-Quantum KEM detected (NIST-approved Kyber/ML-KEM)",
+      "severity": "PQC_GOOD",
+      "cwe": "N/A"
+    },
+    {
+      "pattern": "Dilithium|CRYSTALS-Dilithium|ML-DSA",
+      "message": "✅ Post-Quantum signature detected (NIST-approved Dilithium/ML-DSA)",
+      "severity": "PQC_GOOD",
+      "cwe": "N/A"
+    },
+    {
+      "pattern": "SPHINCS\\+|SLH-DSA",
+      "message": "✅ Post-Quantum signature detected (NIST-approved SPHINCS+/SLH-DSA)",
+      "severity": "PQC_GOOD",
+      "cwe": "N/A"
+    },
+    {
+      "pattern": "FALCON",
+      "message": "✅ Post-Quantum signature detected (NIST-approved FALCON)",
+      "severity": "PQC_GOOD",
+      "cwe": "N/A"
+    },
+    {
+      "pattern": "liboqs|pqcrypto|Open Quantum Safe",
+      "message": "✅ Post-Quantum cryptography library detected",
+      "severity": "PQC_GOOD",
+      "cwe": "N/A"
+    },
+    {
+      "pattern": "hybrid.*crypto|classical.*quantum|RSA.*Kyber|ECDSA.*Dilithium",
+      "message": "✅ Hybrid classical+PQC scheme detected (recommended transition approach)",
+      "severity": "PQC_GOOD",
+      "cwe": "N/A"
+    },
+    {
+      "pattern": "NTRU|McEliece|SIKE|FrodoKEM",
+      "message": "ℹ️ Alternative PQC algorithm detected (verify NIST approval status)",
+      "severity": "PQC_INFO",
+      "cwe": "N/A"
+    }
+  ]
+}
