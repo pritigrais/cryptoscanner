@@ -1,0 +1,24 @@
+{
+  "scan_metadata": {
+    "timestamp": "2026-02-10T13:27:09Z",
+    "scanner_version": "1.0.0",
+    "report_id": "20260210_185709"
+  },
+  "summary": {
+    "total_issues": 0,
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "dependencies_found": 0
+  },
+  "pqc_readiness": {
+    "readiness_level": "UNKNOWN",
+    "quantum_risk_score": 0,
+    "pqc_libraries_detected": 0,
+    "quantum_vulnerable_algorithms": 0,
+    "hybrid_implementations": 0
+  },
+  "risk_score": 0,
+  "compliance_status": "PASS"
+}
