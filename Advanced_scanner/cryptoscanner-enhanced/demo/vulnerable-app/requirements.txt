@@ -1,0 +1,4 @@
+# Vulnerable dependencies for testing
+pycrypto==2.6.1       # Deprecated, use pycryptodome
+hashlib               # Built-in
+cryptography==2.0     # Outdated version
