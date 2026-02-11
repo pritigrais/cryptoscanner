@@ -1,0 +1,266 @@
+# IBM Secure Pipelines Service (SPS) - Crypto Posture Scanner Integration
+# Add this as a new step in your existing .pipeline-config-v2.yaml
+
+# Integration Instructions:
+# 1. Add crypto-scan step to code-checks task after compliance-checks
+# 2. Or add as separate task between code-checks and code-build
+
+# Example integration in your .pipeline-config-v2.yaml:
+
+version: '2'
+
+tasks:
+  code-checks:
+    include:
+      - dind
+    steps:
+      # ... existing steps (checks-setup, detect-secrets, compliance-checks, peer-review) ...
+      
+      # NEW: Add Crypto Posture Scan step
+      - name: crypto-posture-scan
+        include:
+          - docker-socket
+        runafter: compliance-checks
+        image: icr.io/continuous-delivery/pipeline/pipeline-base-ubi:3.61
+        script: |
+          #!/usr/bin/env bash
+          if [[ "$PIPELINE_DEBUG" == 1 ]]; then
+            trap env EXIT
+            env
+            set -x
+          fi
+          
+          echo "🔐 Starting Crypto Posture Scan..."
+          
+          export app_repo_path=$WORKSPACE/$(load_repo app-repo path)
+          export PIPELINE_CONFIG_REPO_PATH=$(get_env PIPELINE_CONFIG_REPO_PATH)
+          
+          # Navigate to app repository
+          cd $app_repo_path
+          
+          # Check if crypto scanner exists in pipeline config repo
+          SCANNER_PATH="$WORKSPACE/$PIPELINE_CONFIG_REPO_PATH/crypto-posture-scanner"
+          
+          if [ ! -d "$SCANNER_PATH" ]; then
+            echo "⚠️  Crypto scanner not found at $SCANNER_PATH"
+            echo "Please add crypto-posture-scanner to your pipeline config repository"
+            exit 1
+          fi
+          
+          # Make scripts executable
+          chmod +x $SCANNER_PATH/crypto-scan.sh
+          chmod +x $SCANNER_PATH/scripts/*.sh
+          
+          # Run crypto scan on current repository
+          echo "Scanning: $app_repo_path"
+          cd $SCANNER_PATH
+          ./crypto-scan.sh "$app_repo_path"
+          
+          # Store scan results
+          SCAN_EXIT_CODE=$?
+          
+          # Upload reports as artifacts
+          if [ -f "reports/crypto-report.json" ]; then
+            cocoa artifact upload \
+              --backend=cos \
+              --artifact-prefix="crypto-scan/${PIPELINE_RUN_ID}/artifacts" \
+              --file="reports/crypto-report.json"
+          fi
+          
+          if [ -f "reports/crypto-report.html" ]; then
+            cocoa artifact upload \
+              --backend=cos \
+              --artifact-prefix="crypto-scan/${PIPELINE_RUN_ID}/artifacts" \
+              --file="reports/crypto-report.html"
+          fi
+          
+          # Check if scan passed
+          if [ $SCAN_EXIT_CODE -ne 0 ]; then
+            echo "❌ Crypto scan failed - critical vulnerabilities detected"
+            echo "Review report at: reports/crypto-report.html"
+            exit 1
+          fi
+          
+          echo "✅ Crypto scan passed"
+          exit 0
+
+      # Continue with existing static-scan step
+      - name: static-scan
+        # ... existing configuration ...
+
+# Alternative: Add as separate task for better organization
+  crypto-security-scan:
+    include:
+      - dind
+    steps:
+      - name: crypto-posture-analysis
+        include:
+          - docker-socket
+        image: icr.io/continuous-delivery/pipeline/pipeline-base-ubi:3.61
+        onError: stopAndFail
+        script: |
+          #!/usr/bin/env bash
+          set -e
+          
+          if [[ "$PIPELINE_DEBUG" == 1 ]]; then
+            trap env EXIT
+            env
+            set -x
+          fi
+          
+          echo "╔═══════════════════════════════════════════════════════════╗"
+          echo "║   🔐  CRYPTO POSTURE SCANNER - Track 8 Bob-a-thon        ║"
+          echo "╚═══════════════════════════════════════════════════════════╝"
+          
+          # Environment setup
+          export app_repo_path=$WORKSPACE/$(load_repo app-repo path)
+          export PIPELINE_CONFIG_REPO_PATH=$(get_env PIPELINE_CONFIG_REPO_PATH)
+          export app_branch=$(get_env branch)
+          export TRIGGER_NAME=$(get_env TRIGGER_NAME)
+          
+          # Scanner location
+          SCANNER_PATH="$WORKSPACE/$PIPELINE_CONFIG_REPO_PATH/crypto-posture-scanner"
+          
+          # Verify scanner exists
+          if [ ! -d "$SCANNER_PATH" ]; then
+            echo "❌ Error: Crypto scanner not found"
+            echo "Expected location: $SCANNER_PATH"
+            echo ""
+            echo "Setup Instructions:"
+            echo "1. Clone crypto-posture-scanner to your pipeline config repo"
+            echo "2. Commit and push changes"
+            echo "3. Re-run pipeline"
+            exit 1
+          fi
+          
+          # Make scripts executable
+          chmod +x $SCANNER_PATH/crypto-scan.sh
+          chmod +x $SCANNER_PATH/scripts/*.sh
+          
+          # Run scan
+          echo "Target: $app_repo_path"
+          echo "Branch: $app_branch"
+          echo "Trigger: $TRIGGER_NAME"
+          echo ""
+          
+          cd $SCANNER_PATH
+          
+          # Execute crypto scan
+          if ./crypto-scan.sh "$app_repo_path"; then
+            SCAN_STATUS="PASSED"
+            SCAN_EXIT_CODE=0
+          else
+            SCAN_STATUS="FAILED"
+            SCAN_EXIT_CODE=1
+          fi
+          
+          # Upload artifacts to COS
+          echo ""
+          echo "Uploading scan artifacts..."
+          
+          if [ -f "reports/crypto-report.json" ]; then
+            cocoa artifact upload \
+              --backend=cos \
+              --artifact-prefix="crypto-scan/${PIPELINE_RUN_ID}/artifacts" \
+              --file="reports/crypto-report.json"
+            echo "✅ Uploaded: crypto-report.json"
+          fi
+          
+          if [ -f "reports/crypto-report.html" ]; then
+            cocoa artifact upload \
+              --backend=cos \
+              --artifact-prefix="crypto-scan/${PIPELINE_RUN_ID}/artifacts" \
+              --file="reports/crypto-report.html"
+            echo "✅ Uploaded: crypto-report.html"
+          fi
+          
+          # Parse results for summary
+          if [ -f "reports/crypto-report.json" ]; then
+            CRITICAL=$(jq -r '.summary.critical' reports/crypto-report.json)
+            HIGH=$(jq -r '.summary.high' reports/crypto-report.json)
+            TOTAL=$(jq -r '.summary.total_issues' reports/crypto-report.json)
+            
+            echo ""
+            echo "═══════════════════════════════════════════════════════════"
+            echo "SCAN SUMMARY:"
+            echo "  Status: $SCAN_STATUS"
+            echo "  Total Issues: $TOTAL"
+            echo "  Critical: $CRITICAL"
+            echo "  High: $HIGH"
+            echo "═══════════════════════════════════════════════════════════"
+          fi
+          
+          # Exit with appropriate code
+          if [ $SCAN_EXIT_CODE -ne 0 ]; then
+            echo ""
+            echo "❌ PIPELINE BLOCKED: Critical crypto vulnerabilities detected"
+            echo "📄 Review report: crypto-scan/${PIPELINE_RUN_ID}/artifacts/crypto-report.html"
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ Crypto security scan passed - proceeding with pipeline"
+          exit 0
+
+# For PR Pipeline - add similar step
+  pr-code-checks:
+    include:
+      - dind
+    steps:
+      # ... existing steps ...
+      
+      - name: crypto-posture-scan
+        include:
+          - docker-socket
+        image: icr.io/continuous-delivery/pipeline/pipeline-base-ubi:3.61
+        script: |
+          #!/usr/bin/env bash
+          if [[ "$PIPELINE_DEBUG" == 1 ]]; then
+            trap env EXIT
+            env
+            set -x
+          fi
+          
+          echo "🔐 Running Crypto Posture Scan on PR..."
+          
+          export app_repo_path=$WORKSPACE/$(load_repo app-repo path)
+          export PIPELINE_CONFIG_REPO_PATH=$(get_env PIPELINE_CONFIG_REPO_PATH)
+          export target_branch=$(get_env TARGET_BRANCH)
+          
+          SCANNER_PATH="$WORKSPACE/$PIPELINE_CONFIG_REPO_PATH/crypto-posture-scanner"
+          
+          if [ ! -d "$SCANNER_PATH" ]; then
+            echo "⚠️  Crypto scanner not found - skipping"
+            exit 0
+          fi
+          
+          chmod +x $SCANNER_PATH/crypto-scan.sh
+          chmod +x $SCANNER_PATH/scripts/*.sh
+          
+          cd $SCANNER_PATH
+          ./crypto-scan.sh "$app_repo_path"
+          
+          SCAN_EXIT_CODE=$?
+          
+          # Upload artifacts
+          if [ -f "reports/crypto-report.json" ]; then
+            cocoa artifact upload \
+              --backend=cos \
+              --artifact-prefix="crypto-scan-pr/${PIPELINE_RUN_ID}/artifacts" \
+              --file="reports/crypto-report.json"
+          fi
+          
+          if [ -f "reports/crypto-report.html" ]; then
+            cocoa artifact upload \
+              --backend=cos \
+              --artifact-prefix="crypto-scan-pr/${PIPELINE_RUN_ID}/artifacts" \
+              --file="reports/crypto-report.html"
+          fi
+          
+          if [ $SCAN_EXIT_CODE -ne 0 ]; then
+            echo "❌ PR blocked: Crypto vulnerabilities detected"
+            exit 1
+          fi
+          
+          echo "✅ PR crypto scan passed"
+          exit 0
